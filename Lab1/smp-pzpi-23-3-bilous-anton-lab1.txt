@@ -1,0 +1,407 @@
+МІНІСТЕРСТВО ОСВІТИ І НАУКИ УКРАЇНИ
+ХАРКІВСЬКИЙ НАЦІОНАЛЬНИЙ УНІВЕРСИТЕТ РАДІОЕЛЕКТРОНІКИ
+
+Кафедра Програмної інженерії
+
+Звіт
+з лабораторної роботи №1
+з дисципліни: «Скриптові мови програмування»
+
+Виконав:
+ст. гр. ПЗПІ-23-3
+Білоус А. А.
+
+Перевірив:
+Старший викладач кафедри ПІ
+Сокорчук І. П.
+
+Харків -- 2025
+
+
+== Постановка задачі
+Лабораторна робота спрямована на розробку Bash-скрипта для перетворення експортованого розкладу занять з сайту #link("https://cist.nure.ua/")[cist.nure.ua] у формат, придатний для імпорту в #link("https://calendar.google.com/")[Google Календар].
+
+Основні завдання:
+- ознайомитися з командами Bash для роботи з файлами та текстовими даними (select, ls, awk, sort, uniq, tee, cat, sed, iconv);
+- реалізувати скрипт, який оброблятиме CSV-файл із розкладом та перетворюватиме його на формат, сумісний з Google Календарем;
+- забезпечити роботу з різними параметрами командного рядка (вибір певної академічної групи, вибір файлу, опції тихого режиму);
+- реалізувати обробку помилок і правильне форматування дат, часу та назв предметів.
+
+== Хід роботи
+=== Створення файлу скрипту
+Використаємо команду "touch" для створення файлу скрипту:
+```
+touch pzpi-23-3-bilous-anton-task2
+```
+
+Використаємо команду "chmod" для встановлення правильних прав доступу до скрипту:
+```
+chmod 755 pzpi-23-3-bilous-anton-task2
+```
+
+Тепер файл "pzpi-23-3-bilous-anton-task2" може читати та запускати будь-який користувач, а редагувати тільки його володарь.
+
+=== Початок написання скрипту
+При написанні скрипта необхідно продумати синтаксис виклику, обробку параметрів командного рядка, роботу з файлами CSV та конвертацію даних. Крім того, скрипт повинен коректно обробляти помилки та надавати інтуїтивно зрозумілий інтерфейс користувачеві.
+
+Оберемо оболонку виконання "sh". Визначимо назву програми з поточного імені файлу та текст повідомлення довідки, вони будуть друкуватись за запитом користувача:
+
+```
+1  #!/usr/bin/env sh
+2
+3  program_name=$(basename -- "$0")
+4  help_msg="\
+5  Usage:  $program_name [OPTIONS] [ARGUMENTS]
+6          $program_name [-q|--quiet] File [Group]
+7
+8  Arguments:
+9      Group           Group name to search
+10     File            File with .csv extension to parse from
+11
+12 Options:
+13     -h, --help      Print help
+14     -V, --version   Print version
+15     -q, --quiet,    Disable all output to stdout (except -h and -V)
+16         --silent\
+17 "
+```
+
+=== Функція для завершення скрипту
+Цей скрипт буде оброблювати багато помилок, та має мати уніфікований шлях друку інформації при терміновому завершені виконання програми. Реалізуємо функцію "abort" для цієї мети. Вона приймає повідомлення та необов'язковий код завершення. За замовчуванням повідомлення виводиться в стандартний потік помилок з кодом виходу "1" (помилка), але, якщо другий аргумент переданий і дорівнює 0, то повідомлення виводиться в стандартний потік виводу з успішним кодом виходу.
+
+```
+19 abort() { # message, exit code (default 1)
+20     __abort_output=2 # stderr
+21     __abort_exit_code=1
+22
+23     if [ "$2" = '0' ]; then
+24         __abort_output=1 # stdout
+25         __abort_exit_code=0
+26     fi
+27
+28     printf '%s\n' "$1" >& $__abort_output
+29     exit "$__abort_exit_code"
+30 }
+```
+
+=== Обробка аргументів командного рядка
+Тепер можна перейти до обробки аргументів командного рядка. Тихий режим праці (змінна "quiet")  за замовчуванням є вимкнутим. Використаємо поєднання циклу while, оператора case та команди shift для ефективної ітерації по переданим параметрам та їх розпізнаванню. Такі опції як "-\-help" та "-\-version", а також їх синоніми, термінують виконання та роздрукують інформацію. Флаг "-\-quiet" встановить тихий режим. Параметри котрі не є опціями будуть розпізнані як назва файлу, та назва групи.
+
+```
+32 quiet=false
+33
+34 while [ $# -ne 0 ]; do
+35     case "$1" in
+36         '-h' | '--help')
+37             abort "$help_msg" 0 ;;
+38         '-q' | '--quiet' | '--silent')
+39             quiet=true ;;
+40         '-V' | '--version')
+41             abort "$program_name, SemVer 1.0.0" 0 ;;
+42         -*)
+43             abort "Unknown argument: '$1'!" ;;
+44         *.csv)
+45             test -n "$file" && abort "Redundant option: '$1'!";
+46             file=$1
+47             ;;
+48         *)
+49             test -n "$group" && abort "Redundant option: '$1'!"
+50             group=$1
+51             ;;
+52     esac
+53
+54     shift 1
+55 done
+```
+
+=== Функція для створення меню вибору
+Створимо функцію "select_menu" котра створює інтерактивне меню вибору для користувача за допомогою команди "select". Вона приймає ім'я змінної, в яку буде записано вибір, та перелік варіантів вибору. Якщо є лише один варіант, він обереться автоматично.
+
+```
+58 select_menu() { # var_name_to_write_to, [selection options]
+59     __select_menu_ptr=$1
+60     shift 1
+61
+62     echo "Select a $__select_menu_ptr:"
+63
+64     test $# -eq 0 && abort 'Nothing to select.'
+65     if [ $# -eq 1 ]; then
+66         eval "$__select_menu_ptr=$1"
+67         return 0
+68     fi
+69
+70     select choice in exit "$@"; do
+71         case "$choice" in
+72             '') ;; # invalid choices
+73             'exit') abort 'Exiting.' 0 ;;
+74             *) eval "$__select_menu_ptr=$choice"; break ;;
+75         esac
+76     done
+77 }
+```
+
+=== Зчитування файлу розкладу
+Зчитаємо файл розкладу. Якщо ім'я файлу не було передано то якщо стоїть тихий режим виконання буде терміновано, в іншому випадку буде запропоноване меню вибору файлу з відсортованими опціями. Потім спробуємо прочитати вміст файлу та перевіримо, чи він не порожній. Використаємо утиліту "iconv" для перетворення кодування CP1251 (Windows-1251) в UTF-8.
+
+```
+79 if [ -z "$file" ]; then
+80     $quiet && abort 'File not specified!'
+81     select_menu file $(echo TimeTable_*.csv | tr ' ' '\n' | sort -nr -t '_' -k4 -k3 -k2)
+82 fi
+83
+84 data=$(cat -- "$file" 2>/dev/null) || abort "Can't read file '$file'!"
+85 test -z "$data" && abort "File '$file' is empty!"
+86
+87 data=$(printf '%s' "$data" | sed 's/\r/\n/g' | iconv -f CP1251 -t UTF8) ||
+88 abort "Can't convert file '$file' to UTF-8!"
+```
+
+=== Вибір академічної групи
+Отримаємо список унікальних академічних груп з файлу розкладу. Якщо в файлі нема груп, продовжимо обробку файлу без фільтрацій за групою. Якщо ж групи є, але не вказано конкретну групу, запропонуємо вибрати групу з відсортованого списку. Якщо група передана як аргумент не знайдена в файлі, також виведемо меню вибору групи.
+
+```
+90  groups=$(printf '%s' "$data" | sed '1d; / - /!d; s/^"//; s/ - .*//' | sort -u)
+91
+92  if [ -z "$groups" ]; then
+93      # $quiet || echo 'File has no groups, converting as is.' >&2
+94      unset group
+95  elif [ -z "$group" ]; then
+96      echo 'Multiple groups are present but no group is specified!' >&2
+97      $quiet && exit 1
+98      select_menu group $groups
+99  elif ! printf '%s' "$groups" | grep -q "^$group$" ; then
+100     echo 'Group not found!' >&2
+101     $quiet && exit 1
+102     select_menu group $groups
+103 fi
+```
+
+=== Обробка даних за допомогою AWK
+Налаштуємо виведення результатів з урахуванням опції "quiet". Використаємо утиліту "awk" для обробки даних CSV-файлу:
++ задамо заголовок вихідного CSV-файлу для Google Календаря;
++ визначимо функцію "date" для перетворення формату дати з Д.М.Р у М/Д/Р;
++ визначимо функцію "time" для перетворення формату часу з 24-годинного у 12-годинний формат з AM/PM;
++ обробимо кожний рядок після заголовка, фільтруючи за вказаною групою;
++ видалимо ім'я групи з назви предмета;
++ роздрукуємо строку з пронумерованими заняттями, та часом відформатованим відповідно до вимог Google Календаря.
+
+Результат запишемо у файл з префіксом "Google\_" та вивевдемо на екран, якщо не вказано опцію quiet.
+
+```
+106 exec 3>&1
+107 $quiet && exec 3>/dev/null
+108
+109 printf '%s' "$data" | awk -v FS='","' -v group="$group" '
+110     BEGIN { print "Subject,Start Date,Start Time,End Date,End Time,Description" }
+111
+112     function date(d) { # d.m.y to m/d/y
+113         split(d, p, ".")
+114         return sprintf("%s/%s/%s", p[2], p[1], p[3])
+115     }
+116
+117     function time(t) { # h:m:s to h:m AM/PM
+118         split(t, p, ":")
+119         return sprintf("%s:%s %s", p[1]>12 ? p[1]-12 : p[1], p[2], p[1]>12 ? "PM":"AM")
+120     }
+121
+122     NR>1 && $1 ~ "^\"" group {
+123         gsub(group " - |\"$", "", $1)
+124         printf("%s; №%d\",%s,%s,%s,%s,\"%s\"\n",
+125             $1, ++num[$2], date($2), time($3), date($4), time($5), $12)
+126     }
+127 ' | tee "Google_$(basename -- "$file")" >&3
+```
+
+=== Результати виконання
+Розроблений скрипт успішно виконує поставлені завдання. Основні сценарії використання:
+
+- виклики скрипту з стандартними опціями "-\-help" та "-h":
+```
+$ ./pzpi-23-3-bilous-anton-task2 --help
+Usage:  pzpi-23-3-bilous-anton-task2 [OPTIONS] [ARGUMENTS]
+        pzpi-23-3-bilous-anton-task2 [-q|--quiet] File [Group]
+
+Arguments:
+    Group           Group name to search
+    File            File with .csv extension to parse from
+
+Options:
+    -h, --help      Print help
+    -V, --version   Print version
+    -q, --quiet,    Disable all output to stdout (except -h and -V)
+        --silent
+```
+
+- виклики скрипту з стандартними опціями "-\-version" та "-V":
+```
+$ ./pzpi-23-3-bilous-anton-task2 --version
+pzpi-23-3-bilous-anton-task2, SemVer 1.0.0
+```
+
+- виклик скрипту без опцій:
+```
+$ ./pzpi-23-3-bilous-anton-task2
+```
+Результат: пропонується вибір файлу розкладу, вибір групи у цьому файлі (якщо файл містить кілька груп), та друкується результат конвертації який також записується у однойменний файл з префіксом "Google\_".
+
+- виклик скрипту з опцією "-q", "-\-quiet" або "-\-silent":
+```
+$ ./pzpi-23-3-bilous-anton-task2 --quiet
+File not specified!
+```
+
+- виклик скрипту з опцією "-q" та переданням файлу без груп:
+```
+$ ./pzpi-23-3-bilous-anton-task2 -q TimeTable_24_04_2025.csv
+```
+Результат: тихо був створений файл "Google_TimeTable_24_04_2025.csv" який містить розклад однієї групи
+
+- виклик скрипту з переданням групи
+```
+$ ./pzpi-23-3-bilous-anton-task2 ПЗПІ-23-3
+Subject,Start Date,Start Time,End Date,End Time,Description
+"ОС Лб DL ПЗПІ-23-3; №1",03/10/2025,07:45 AM,03/10/2025,...
+"ОС Лб DL ПЗПІ-23-3; №1",03/24/2025,07:45 AM,03/24/2025,...
+"ОС Лб DL ПЗПІ-23-3; №1",04/07/2025,07:45 AM,04/07/2025,...
+...
+```
+Результат: пропонується вибір файлу, та друкується результат конвертації який також записується у однойменний файл з префіксом "Google\_".
+
+== Висновки
+
+Скрипт успішно перетворює файл експортований з сайту #link("https://cist.nure.ua/")[cist.nure.ua] у формат, придатний для імпорту в #link("https://calendar.google.com/")[Google Календар], що дозволяє студентам та викладачам ефективно використовувати цей інструмент для планування свого часу. Цей скрипт не тільки вирішує проблему несумісності форматів, але й автоматизує рутинний процес, який інакше вимагав би значних часових затрат на ручне перенесення розкладу в календар.
+
+Було реалізовано обробку параметрів командного рядка, інтерфейс вибору файлів і груп, коректне перетворення форматів дати та часу, правильне форматування назв предметів, нумерування занять та обробку помилкових ситуацій. Успішно виконано тестування основних сценаріїв використання. Розроблена система меню за допомогою оператора "select" забезпечує зручний користувацький інтерфейс, що особливо важливо при роботі з багатьма групами або файлами.
+
+
+ДОДАТОК А
+= Код скрипту
+```
+1   #!/usr/bin/env sh
+2
+3   program_name=$(basename -- "$0")
+4   help_msg="\
+5   Usage:  $program_name [OPTIONS] [ARGUMENTS]
+6           $program_name [-q|--quiet] File [Group]
+7
+8   Arguments:
+9       Group           Group name to search
+10      File            File with .csv extension to parse from
+11
+12  Options:
+13      -h, --help      Print help
+14      -V, --version   Print version
+15      -q, --quiet,    Disable all output to stdout (except -h and -V)
+16          --silent\
+17  "
+18
+19  abort() { # message, exit code (default 1)
+20      __abort_output=2 # stderr
+21      __abort_exit_code=1
+22
+23      if [ "$2" = '0' ]; then
+24          __abort_output=1 # stdout
+25          __abort_exit_code=0
+26      fi
+27
+28      printf '%s\n' "$1" >& $__abort_output
+29      exit "$__abort_exit_code"
+30  }
+31
+32  quiet=false
+33
+34  while [ $# -ne 0 ]; do
+35      case "$1" in
+36          '-h' | '--help')
+37              abort "$help_msg" 0 ;;
+38          '-q' | '--quiet' | '--silent')
+39              quiet=true ;;
+40          '-V' | '--version')
+41              abort "$program_name, SemVer 1.0.0" 0 ;;
+42          -*)
+43              abort "Unknown argument: '$1'!" ;;
+44          *.csv)
+45              test -n "$file" && abort "Redundant option: '$1'!";
+46              file=$1
+47              ;;
+48          *)
+49              test -n "$group" && abort "Redundant option: '$1'!"
+50              group=$1
+51              ;;
+52      esac
+53
+54      shift 1
+55  done
+56
+57
+58  select_menu() { # var_name_to_write_to, [selection options]
+59      __select_menu_ptr=$1
+60      shift 1
+61
+62      echo "Select a $__select_menu_ptr:"
+63
+64      test $# -eq 0 && abort 'Nothing to select.'
+65      if [ $# -eq 1 ]; then
+66          eval "$__select_menu_ptr=$1"
+67          return 0
+68      fi
+69
+70      select choice in exit "$@"; do
+71          case "$choice" in
+72              '') ;; # invalid choices
+73              'exit') abort 'Exiting.' 0 ;;
+74              *) eval "$__select_menu_ptr=$choice"; break ;;
+75          esac
+76      done
+77  }
+78
+79  if [ -z "$file" ]; then
+80      $quiet && abort 'File not specified!'
+81      select_menu file $(echo TimeTable_*.csv | tr ' ' '\n' | sort -nr -t '_' -k4 -k3 -k2)
+82  fi
+83
+84  data=$(cat -- "$file" 2>/dev/null) || abort "Can't read file '$file'!"
+85  test -z "$data" && abort "File '$file' is empty!"
+86
+87  data=$(printf '%s' "$data" | sed 's/\r/\n/g' | iconv -f CP1251 -t UTF8) ||
+88  abort "Can't convert file '$file' to UTF-8!"
+89
+90  groups=$(printf '%s' "$data" | sed '1d; / - /!d; s/^"//; s/ - .*//' | sort -u)
+91
+92  if [ -z "$groups" ]; then
+93      # $quiet || echo 'File has no groups, converting as is.' >&2
+94      unset group
+95  elif [ -z "$group" ]; then
+96      echo 'Multiple groups are present but no group is specified!' >&2
+97      $quiet && exit 1
+98      select_menu group $groups
+99  elif ! printf '%s' "$groups" | grep -q "^$group$" ; then
+100     echo 'Group not found!' >&2
+101     $quiet && exit 1
+102     select_menu group $groups
+103 fi
+104
+105
+106 exec 3>&1
+107 $quiet && exec 3>/dev/null
+108
+109 printf '%s' "$data" | awk -v FS='","' -v group="$group" '
+110     BEGIN { print "Subject,Start Date,Start Time,End Date,End Time,Description" }
+111
+112     function date(d) { # d.m.y to m/d/y
+113         split(d, p, ".")
+114         return sprintf("%s/%s/%s", p[2], p[1], p[3])
+115     }
+116
+117     function time(t) { # h:m:s to h:m AM/PM (wrong at 0 & 24 hours yet simple)
+118         split(t, p, ":")
+119         return sprintf("%s:%s %s", p[1]>12 ? p[1]-12 : p[1], p[2], p[1]>12 ? "PM":"AM")
+120     }
+121
+122     NR>1 && $1 ~ "^\"" group {
+123         gsub(group " - |\"$", "", $1)
+124         printf("%s; №%d\",%s,%s,%s,%s,\"%s\"\n",
+125             $1, ++num[$2], date($2), time($3), date($4), time($5), $12)
+126     }
+127 ' | tee "Google_$(basename -- "$file")" >&3
+```
