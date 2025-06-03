@@ -1,0 +1,45 @@
+<h2>Ваш кошик</h2>
+<?php if (empty($cart_items)): ?>
+<p>Ваш кошик порожній. <a href="index.php?page=products">Перейти до покупок</a>.</p>
+<?php else: ?>
+<table class="cart-table">
+    <thead>
+        <tr>
+            <th>Зображення</th>
+            <th>Назва</th>
+            <th>Ціна</th>
+            <th>Кількість</th>
+            <th>Сума</th>
+            <th>Дія</th>
+        </tr>
+    </thead>
+    <tbody>
+        <?php foreach ($cart_items as $item): ?>
+        <tr>
+            <td><img src="images/<?php echo htmlspecialchars($item['image_name'] ?: 'default'); ?>" alt="<?php echo htmlspecialchars($item['name']); ?>" style="width:50px; height:auto;"></td>
+            <td><?php echo htmlspecialchars($item['name']); ?></td>
+            <td><?php echo number_format($item['price'], 2); ?> грн</td>
+            <td><?php echo $item['quantity']; ?></td>
+            <td><?php echo number_format($item['subtotal'], 2); ?> грн</td>
+            <td>
+                <form action="index.php?action=remove_from_cart" method="post" style="display:inline;">
+                    <input type="hidden" name="product_id" value="<?php echo $item['id']; ?>">
+                    <button type="submit" class="remove-btn">Вилучити</button>
+                </form>
+            </td>
+        </tr>
+        <?php endforeach; ?>
+    </tbody>
+    <tfoot>
+        <tr>
+            <td colspan="4" style="text-align:right;"><strong>Загалом:</strong></td>
+            <td><strong><?php echo number_format($cart_total, 2); ?> грн</strong></td>
+            <td>
+                <form action="index.php?action=clear_cart" method="post">
+                    <button type="submit" class="clear-btn">Очистити кошик</button>
+                </form>
+            </td>
+        </tr>
+    </tfoot>
+</table>
+<?php endif; ?>
