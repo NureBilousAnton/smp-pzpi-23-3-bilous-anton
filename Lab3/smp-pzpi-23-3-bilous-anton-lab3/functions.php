@@ -1,26 +1,16 @@
 <?php
 require_once 'db.php';
 
-function get_all_products() {
-    return get_pdo()->query("SELECT * FROM products")->fetchAll();
-}
-
-function get_product_by_id($id) {
-    $stmt = get_pdo()->prepare("SELECT * FROM products WHERE id = ?");
-    $stmt->execute([$id]);
-    return $stmt->fetch();
-}
-
 function add_to_cart($product_id, $quantity) {
     $product_id = (int)$product_id;
     $quantity = (int)$quantity;
 
     if ($quantity < 1) {
-        $_SESSION['message'] = "Не можна купити менше одного товару!";
+        $_SESSION['error_message'] = "Не можна купити менше одного товару!";
         return;
     }
     if ($quantity > 99) {
-        $_SESSION['message'] = "Не можна купити більше 99 товарів!";
+        $_SESSION['error_message'] = "Не можна купити більше 99 товарів!";
         return;
     }
 
@@ -28,13 +18,13 @@ function add_to_cart($product_id, $quantity) {
 
     $product = get_product_by_id($product_id);
     if (!$product) {
-        $_SESSION['message'] = "Продукт не зайдено!";
+        $_SESSION['error_message'] = "Продукт не зайдено!";
         return;
     }
 
     $_SESSION['cart'][$product_id] ??= 0;
     $_SESSION['cart'][$product_id] += $quantity;
-    $_SESSION['message'] = $product['name'] . " додано до кошику.";
+    $_SESSION['success_message'] = $product['name'] . " додано до кошику.";
 }
 
 function get_cart_items() {
@@ -70,13 +60,13 @@ function get_cart_items() {
 function remove_from_cart($product_id) {
     if (isset($_SESSION['cart'][(int)$product_id])) {
         unset($_SESSION['cart'][(int)$product_id]);
-        $_SESSION['message'] = "Товар видалено з кошика.";
+        $_SESSION['success_message'] = "Товар видалено з кошика.";
     }
 }
 
 function clear_cart() {
     $_SESSION['cart'] = [];
-    $_SESSION['message'] = "Кошик очищено.";
+    $_SESSION['success_message'] = "Кошик очищено.";
 }
 
 function get_cart_total() {

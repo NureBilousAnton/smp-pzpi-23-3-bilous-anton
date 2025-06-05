@@ -19,6 +19,17 @@ function get_pdo() {
     return $pdo;
 }
 
+function get_all_products() {
+    return get_pdo()->query("SELECT * FROM products")->fetchAll();
+}
+
+function get_product_by_id($id) {
+    $stmt = get_pdo()->prepare("SELECT * FROM products WHERE id = ?");
+    $stmt->execute([$id]);
+    return $stmt->fetch();
+}
+
+
 function init_db() {
     $pdo = get_pdo();
 

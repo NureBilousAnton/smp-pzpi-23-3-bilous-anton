@@ -1,5 +1,5 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="uk">
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -10,18 +10,22 @@
 <header>
     <div class="container">
         <h1><a href="index.php">Web-Магазин</a></h1>
-        <nav>
-            <ul>
-                <li><a href="index.php?page=products">Товари</a></li>
-                <li><a href="index.php?page=cart">Кошик (<?php echo isset($_SESSION['cart']) ? count($_SESSION['cart']) : 0; ?>)</a></li>
-            </ul>
-        </nav>
+
+        <nav><ul>
+        <li><a href="index.php?page=products">Товари</a></li>
+        <li><a href="index.php?page=cart">Кошик (<?= e($cart_item_count); ?>)</a></li>
+        </ul></nav>
     </div>
 </header>
 <main class="container">
 <?php
-if (isset($_SESSION['message'])) {
-    echo '<p class="message">' . htmlspecialchars($_SESSION['message']) . '</p>';
-    unset($_SESSION['message']);
-}
+    if (isset($message)) {
+        echo '<p class="message">' . e($message) . '</p>';
+    }
+    if (isset($success_message)) {
+        echo '<p class="message success">' . e($success_message) . '</p>';
+    }
+    if (isset($error_message)) {
+        echo '<p class="message error">' . e($error_message) . '</p>';
+    }
 ?>

@@ -1,9 +1,7 @@
-Modify `/etc/php/php.ini` to enable sqlite support:
-```diff
--;extension=pdo_sqlite
-+extension=pdo_sqlite
--;extension=sqlite3
-+extension=sqlite3
+Add to `/etc/php/php.ini` if not present:
+```
+extension=pdo_sqlite
+extension=sqlite3
 ```
 
 Then in the code directory:
