@@ -1,0 +1,48 @@
+<!DOCTYPE html>
+<html lang="uk">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Web-Магазин</title>
+    <link rel="stylesheet" href="style.css">
+</head>
+<body>
+<header>
+    <div class="container">
+        <h1><a href="index.php">Web-Магазин</a></h1>
+
+        <nav><ul>
+        <li><a href="index.php?page=products">Товари</a></li>
+        <?php if (isset($_SESSION['user'])): ?>
+            <li><a href="index.php?page=cart">Кошик (<?= e($cart_item_count); ?>)</a></li>
+            <li><a href="index.php?page=profile">Профіль (<?= e($_SESSION['user']['username'] ?: 'Гість'); ?>)</a></li>
+            <li><a href="index.php?action=logout">Вийти</a></li>
+        <?php else: ?>
+            <li><a href="index.php?page=login">Увійти</a></li>
+        <?php endif; ?>
+        </ul></nav>
+    </div>
+</header>
+<main class="container">
+<?php
+    if (isset($_SESSION['message'])) {
+        echo '<p class="message">' . e($_SESSION['message']) . '</p>';
+        unset($_SESSION['message']);
+    }
+    if (isset($_SESSION['success_message'])) {
+        echo '<p class="message success">' . e($_SESSION['success_message']) . '</p>';
+        unset($_SESSION['success_message']);
+    }
+    if (isset($_SESSION['error_message'])) {
+        echo '<p class="message error">' . e($_SESSION['error_message']) . '</p>';
+        unset($_SESSION['error_message']);
+    }
+    if (!empty($_SESSION['error_list'])) {
+        echo '<ul class="message error">';
+        foreach ($_SESSION['error_list'] as $error) {
+            echo '<li>' . e($error) . '</li>';
+        }
+        echo '</ul>';
+        unset($_SESSION['error_list']);
+    }
+?>

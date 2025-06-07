@@ -1,0 +1,16 @@
+<div class="page404-container">
+    <?php if (isset($_SESSION['message404'])): ?>
+        <h2><?= e($_SESSION['message404']); unset($_SESSION['message404']); ?></h2>
+        <?php if (!isset($_SESSION['user'])): ?>
+            <p><a href="index.php?page=login">Будь ласка, увійдіть до системи.</a></p>
+        <?php endif; ?>
+    <?php else: ?>
+        <h2>Помилка 404 - Сторінку не знайдено</h2>
+        <p>Вибачте, сторінка, яку ви шукаєте, не існує.</p>
+    <?php endif; ?>
+    <p><a href="index.php">Повернутися на головну</a></p>
+</div>
+<style>
+    .page404-container { text-align: center; padding: 40px 20px; }
+    .page404-container h2 { font-size: 1.5em; color: #333; margin-bottom: 20px;}
+</style>

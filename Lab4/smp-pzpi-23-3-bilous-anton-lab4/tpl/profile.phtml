@@ -1,0 +1,44 @@
+<?php
+    $user = $_SESSION['user'];
+    $pfp_path = 'images/default_pfp';
+    if (isset($user['pfp_name']) && file_exists(UPLOADS_DIR . $user['pfp_name'])) {
+        $pfp_path = 'uploads/' . $user['pfp_name'];
+    }
+    error_log($pfp_path);
+?>
+
+<h2 class="profile-heading">Профіль користувача: <?= e($user['username'] ?: 'Гість'); ?></h2>
+
+<div class="profile-layout">
+    <div class="profile-pfp-section">
+        <img src="<?= e($pfp_path); ?>" alt="Картинка профілю" class="profile-pfp-img">
+    </div>
+
+    <form action="index.php?action=update_profile" method="post" enctype="multipart/form-data" class="profile-form">
+        <div>
+            <label for="username">Логін</label>
+            <input type="text" id="username" name="username" value="<?= e($user['username']); ?>" required>
+        </div>
+        <div>
+            <label for="name">Ім'я:</label>
+            <input type="text" id="name" name="name" value="<?= e($user['name']); ?>" required>
+        </div>
+        <div>
+            <label for="surname">Прізвище:</label>
+            <input type="text" id="surname" name="surname" value="<?= e($user['surname']); ?>" required>
+        </div>
+        <div>
+            <label for="birth_date">Дата народження:</label>
+            <input type="date" id="birth_date" name="birth_date" value="<?= e($user['birth_date']); ?>">
+        </div>
+        <div>
+            <label for="description">Короткий опис (до 200 символів):</label>
+            <textarea id="description" name="description" rows="3" maxlength="200"><?= e($user['description']); ?></textarea>
+        </div>
+        <div>
+            <label for="pfp">Змінити картинку профілю (JPG, PNG, GIF, до 4 MB):</label>
+            <input type="file" id="pfp" name="pfp" accept="image/jpeg,image/png,image/gif">
+        </div>
+        <button type="submit">Зберегти зміни</button>
+    </form>
+</div>
