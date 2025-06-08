@@ -36,6 +36,7 @@ function pad($str, $len) {
 
 $products_menu = PHP_EOL;
 
+// find longest product name
 $pad_name = 0;
 $products_number = 0;
 foreach ($products as $product) {
@@ -147,7 +148,7 @@ function receipt() {
         $total += $price * $amount;
 
         echo pad(++$i, $pad_number), pad($products[$item][0], $pad_name),
-        pad($price, 6), pad($amount, 11), $price * $amount, PHP_EOL;
+            pad($price, 6), pad($amount, 11), $price * $amount, PHP_EOL;
     }
     echo 'РАЗОМ ДО CПЛАТИ: ', $total, PHP_EOL;
 }

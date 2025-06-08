@@ -71,7 +71,7 @@ select_menu() { # var_name_to_write_to, [selection options]
         case "$choice" in
             '') ;; # invalid choices
             'exit') abort 'Exiting.' 0 ;;
-            *) eval "$__select_menu_ptr=$choice"; break ;;
+            *) eval "$__select_menu_ptr=$choice"; return 0 ;;
         esac
     done
 }
